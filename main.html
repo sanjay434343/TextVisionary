@@ -1,0 +1,485 @@
+
+    
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+    <title>TextVisionary</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3a86ff;
+            --secondary-color: #8338ec;
+            --background-color: #111827;
+            --text-color: #e2e8f0;
+            --card-background: rgba(17, 24, 39, 0.8);
+            --border-color: #4b5563;
+            --border-radius: 12px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--background-color), #1f2937);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            margin: 2rem auto;
+            background-color: var(--card-background);
+            min-height: calc(100vh - 4rem);
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+        
+        .app-header {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            text-align: center;
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .app-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(58, 134, 255, 0.5);
+        }
+        
+        .app-content {
+            flex: 1;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .image-upload-section {
+            display: flex;
+            justify-content: center;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(58, 134, 255, 0.5), 0 2px 4px -1px rgba(131, 56, 236, 0.5);
+        }
+        
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px -1px rgba(58, 134, 255, 0.6), 0 3px 6px -1px rgba(131, 56, 236, 0.6);
+        }
+        
+        .image-preview {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 0 15px rgba(58, 134, 255, 0.3);
+        }
+        
+        #processedImage {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+        }
+        
+        .detections-container {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+        
+        .detection-section {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .detection-section h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+        
+        .detection-section p, .detection-section li {
+            font-size: 0.9rem;
+            color: var(--text-color);
+        }
+        
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .loader div {
+            width: 12px;
+            height: 12px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            margin: 0 6px;
+            animation: loader 1.2s infinite ease-in-out both;
+        }
+        
+        .loader div:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        
+        .loader div:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        @keyframes loader {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+        
+        .loader.hidden {
+            display: none;
+        }
+        
+        @media (max-width: 640px) {
+            .app-container {
+                margin: 0;
+                min-height: 100vh;
+                border-radius: 0;
+            }
+        
+            .app-header {
+                border-radius: 0;
+            }
+        
+            .detections-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .can{
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>TextVisionary</h1>
+        </header>
+        
+        <main class="app-content">
+            <div class="image-upload-section">
+                <input type="file" id="imageUpload" class="file-input" accept="image/*">
+                <label for="imageUpload" class="file-input-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Choose Image
+                </label>
+            </div>
+            
+         <div class="can">
+            <canvas id="processedImage">
+              <h3>Out put will be display here</h3>  
+
+            </canvas>
+
+         </div>
+            
+            
+            <div id="detections" class="detections-container">
+
+              <h3>Out put will be display here</h3>  
+            </div>
+        </main>
+    </div>
+
+    <div class="loader" id="loader">
+        <div></div>
+        <div></div>
+        <div></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.0/dist/tesseract.min.js"></script>
+
+    <script>
+       // Elements from the HTML
+// Elements from the HTML
+// Elements from the HTML
+const imageUpload = document.getElementById('imageUpload');
+const processedImage = document.getElementById('processedImage');
+const detectionsDiv = document.getElementById('detections');
+const ctx = processedImage.getContext('2d');
+const loader = document.getElementById('loader');
+
+let faceModel, objectModel, classificationModel;
+let extractedText = ""; // Variable to store the extracted text from the image
+
+// Load models (Blazeface, Coco-SSD, MobileNet)
+async function loadModels() {
+    try {
+        // Simulate loader during model loading
+        loader.classList.remove('hidden');  // Show loader during model loading
+        faceModel = await blazeface.load();
+        objectModel = await cocoSsd.load();
+        classificationModel = await mobilenet.load();
+        console.log("All models loaded");
+        loader.classList.add('hidden');  // Hide loader when models are loaded
+    } catch (error) {
+        console.error("Error loading models", error);
+    }
+}
+
+// Process the image after it's uploaded
+async function processImage(img) {
+    // Show loader during processing
+    loader.classList.remove('hidden');
+
+    // Check if models are loaded
+    if (!classificationModel || !objectModel || !faceModel) {
+        console.error("Models are not loaded yet");
+        return;
+    }
+
+    processedImage.width = img.width;
+    processedImage.height = img.height;
+
+    ctx.drawImage(img, 0, 0);
+
+    try {
+        // Store predictions for 10 iterations
+        let facePredictionsList = [];
+        let objectPredictionsList = [];
+        let classificationPredictionsList = [];
+
+        // Run the analysis once for better speed
+        const [facePredictions, objectPredictions, classificationPredictions] = await Promise.all([
+            faceModel.estimateFaces(img, false),
+            objectModel.detect(img),
+            classificationModel.classify(img)
+        ]);
+
+        facePredictionsList.push(facePredictions);
+        objectPredictionsList.push(objectPredictions);
+        classificationPredictionsList.push(classificationPredictions);
+
+        // Aggregate predictions for accuracy
+        const aggregatedFacePredictions = aggregatePredictions(facePredictionsList, 'face');
+        const aggregatedObjectPredictions = aggregatePredictions(objectPredictionsList, 'object');
+        const aggregatedClassificationPredictions = aggregatePredictions(classificationPredictionsList, 'classification');
+
+        // Draw aggregated face predictions
+        aggregatedFacePredictions.forEach(prediction => {
+            const start = prediction.topLeft;
+            const end = prediction.bottomRight;
+            ctx.beginPath();
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                start[0], 
+                start[1], 
+                end[0] - start[0], 
+                end[1] - start[1]
+            );
+        });
+
+        // Draw aggregated object predictions
+        aggregatedObjectPredictions.forEach(prediction => {
+            ctx.beginPath();
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                prediction.bbox[0],
+                prediction.bbox[1],
+                prediction.bbox[2],
+                prediction.bbox[3]
+            );
+        });
+
+        // Call OCR for text extraction from the image
+        await extractTextFromImage(img);
+
+        // Display detections including the extracted text
+      // Display detections including the extracted text
+detectionsDiv.innerHTML = ` 
+<div class="detection-grid">
+    <div class="detection-section">
+        <h3>Faces</h3>
+        <p>${aggregatedFacePredictions.length} detected</p>
+    </div><br>
+    <div class="detection-section">
+        <h3>Objects</h3>
+        <p>
+            ${aggregatedObjectPredictions.slice(0, 3).map(obj => 
+                `<li>${obj.class} (${Math.round(obj.score * 100)}%)</li>`).join('')}
+        </p>
+    </div><br>
+    <div class="detection-section">
+        <h3>Classifications</h3>
+        <p>
+            ${aggregatedClassificationPredictions.slice(0, 3).map(cls => 
+                `<li>${cls.className} (${Math.round(cls.probability * 100)}%)</li>`).join('')}
+        </p>
+    </div><br>
+    <div class="detection-section">
+        <h3>Extracted Text</h3>
+        <p>${extractedText ? extractedText : "No text found in the image"}</p> <!-- Check if text is extracted, otherwise show message -->
+    </div>
+</div>
+`;
+
+
+        // GSAP Animations for better visual experience
+        gsap.from(processedImage, {
+            duration: 0.5,
+            opacity: 0,
+            scale: 0.8,
+            ease: "power2.out"
+        });
+
+        gsap.from("#detections .detection-section", {
+            duration: 0.5,
+            y: 50,
+            opacity: 0,
+            stagger: 0.2,
+            ease: "power2.out"
+        });
+        
+        // Hide loader after processing
+        loader.classList.add('hidden');
+
+    } catch (error) {
+        console.error("Error during processing", error);
+        loader.classList.add('hidden');  // Hide loader in case of error
+    }
+}
+
+// Function to aggregate predictions from multiple runs
+function aggregatePredictions(predictionsList, type) {
+    const aggregated = {};
+
+    predictionsList.forEach(predictions => {
+        predictions.forEach(prediction => {
+            // For face predictions, use a more specific key based on the face position or bounding box
+            const key = type === 'face' 
+                ? JSON.stringify(prediction.topLeft) + JSON.stringify(prediction.bottomRight) 
+                : prediction.class || prediction.className || JSON.stringify(prediction.bbox);
+
+            if (aggregated[key]) {
+                aggregated[key].count += 1;
+                aggregated[key].score += prediction.score || prediction.probability;
+            } else {
+                aggregated[key] = { ...prediction, count: 1, score: prediction.score || prediction.probability };
+            }
+        });
+    });
+
+    // Sort predictions by the highest average score
+    const sortedAggregated = Object.values(aggregated).sort((a, b) => (b.score / b.count) - (a.score / a.count));
+
+    return sortedAggregated;
+}
+
+// Function to extract text from image using Tesseract.js
+async function extractTextFromImage(img) {
+    const result = await Tesseract.recognize(
+        img,
+        'eng',
+        {
+            logger: (m) => console.log(m)  // Optional: Show progress logs
+        }
+    );
+
+    // Store the extracted text in the global variable
+    extractedText = result.data.text.trim();
+    console.log('Extracted Text: ', extractedText); // Log extracted text for debugging
+}
+
+// Load the models when the page loads
+loadModels();
+
+// Handle image upload event
+imageUpload.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            processImage(img);
+        };
+        img.src = event.target.result;
+    };
+
+    if (file) {
+        reader.readAsDataURL(file);
+    }
+});
+
+
+    </script>
+</body>
+</html>
